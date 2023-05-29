@@ -169,13 +169,6 @@ class TextHandler:
         self.history_output = self.history_output[:-1]
         return self.handle(text_new, get_output_args=get_output_args)
 
-    def clear_history(self, inp):
-        if int(inp) > 0:
-            print('clearing history...', flush=True)
-            self.save_state(True)
-            self.history = self.history[:-int(inp)]
-            self.history_output = self.history_output[:-int(inp)]
-            self.save_state()
 
     def retry_last_input_args(self):
         if len(self.history) < 1:
@@ -192,3 +185,10 @@ class TextHandler:
             print("Invalid JSON string")
             return None
 
+
+    def clear_history(self, inp):
+        if int(inp) > 0:
+            self.save_state(True)
+            self.history = self.history[:-int(inp)]
+            self.history_output = self.history_output[:-int(inp)]
+            self.save_state()
