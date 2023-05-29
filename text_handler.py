@@ -23,6 +23,10 @@ class TextHandler:
         },
         get_output_args={
         },
+        language = {
+            'src': None,
+            'dest': None,
+        },
     ):
         self.use_output_cache = use_output_cache
         self.start_from_history_file = start_from_history_file
@@ -38,6 +42,7 @@ class TextHandler:
 
         self.print_format = print_format
         self.get_output_args = get_output_args
+        self.language = language
 
         if self.start_from_history_file:
             with open(self.start_from_history_file, mode="r", encoding="utf-8") as f:
@@ -102,9 +107,9 @@ class TextHandler:
             "history_nonl",
             timestamp=timestamp, json_write=False)
 
-    # Example function
+
     def get_output(self, text_new, args):
-        return len(text_new)
+        return text_new
 
     def print_input(self, text_new):
         print_text = text_new
