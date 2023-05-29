@@ -18,6 +18,7 @@ class TextHandlerJapanese(text_handler.TextHandler):
         print_romaji=True,
         characters_to_spaces=['_'],
         camelcase_to_spaces=True,
+        english_to_katakana=True,
         *args,
         **kwargs,
     ):
@@ -25,6 +26,10 @@ class TextHandlerJapanese(text_handler.TextHandler):
         self.print_romaji = print_romaji
         self.characters_to_spaces = characters_to_spaces
         self.camelcase_to_spaces = camelcase_to_spaces
+        self.english_to_katakana = english_to_katakana
+        if self.english_to_katakana:
+            import romajitable
+            self.romajitable = romajitable
 
     def print_input(self, text_new):
         print_text = text_new
@@ -42,11 +47,21 @@ class TextHandlerJapanese(text_handler.TextHandler):
                     output, utils_japanese.convert_japanese_to_romaji(output))
         super().print_output(print_text)
 
-    def get_output(self, text_new, args):
+    def text_preprocess(self, text, args):
         for c in self.characters_to_spaces:
-            text_new = text_new.replace(c, " ")
+            text = text.replace(c, " ")
 
         if self.camelcase_to_spaces:
-            text_new = camel_case_to_spaces(text_new)
+            text = camel_case_to_spaces(text)
+        return text
 
-        return super().get_output(text_new, args)
+    def text_postprocess(self, text, args):
+        if self.english_to_katakana:
+            text = utils_japanese.english_to_katakana(text)
+        return text
+
+    def get_output(self, text_new, args):
+        text_new = self.text_preprocess(text_new, args)
+        text_output = super().get_output(text_new, args)
+        text_output = self.text_postprocess(text_output, args)
+        return text_output
