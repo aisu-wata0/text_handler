@@ -5,13 +5,6 @@ from python_utils_aisu import utils, utils_japanese
 
 from . import text_handler
 
-def camel_case_to_spaces(text):
-    # Use regular expression to split camel case words
-    spaced_text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
-    # Convert to lowercase and remove leading/trailing spaces
-    spaced_text = spaced_text.lower().strip()
-    return spaced_text
-
 class TextHandlerJapanese(text_handler.TextHandler):
     def __init__(
         self,
@@ -52,7 +45,7 @@ class TextHandlerJapanese(text_handler.TextHandler):
             text = text.replace(c, " ")
 
         if self.camelcase_to_spaces:
-            text = camel_case_to_spaces(text)
+            text = utils.camel_case_to_spaces(text)
         return text
 
     def text_postprocess(self, text, args):

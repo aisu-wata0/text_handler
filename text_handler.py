@@ -159,7 +159,7 @@ class TextHandler:
         thread = threading.Thread(target=self.handle, args=(text_new,))
         return thread
 
-    def retry_last(self, get_output_args):
+    def retry_last(self, get_output_args={}):
         if len(self.history) < 1:
             return None
         text_new = self.history[-1]
