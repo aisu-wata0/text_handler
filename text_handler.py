@@ -1,8 +1,12 @@
 import threading
 import json
 import logging
+from typing import Any, Iterable
 
 from python_utils_aisu import utils, utils_japanese
+
+logger = utils.loggingGetLogger(__name__)
+
 
 class TextHandler:
     def __init__(
@@ -23,7 +27,7 @@ class TextHandler:
         },
         get_output_args={
         },
-        language = {
+        language={
             'src': None,
             'dest': None,
         },
@@ -59,6 +63,8 @@ class TextHandler:
             self.history_cut = self.find_history_cut("whatever")
             print(f"history_cut = {self.history_cut}")
 
+        self.wait: Any = None
+
     def is_size_ok(self, text_new, history_cut_):
         over_size = len(self.history[history_cut_:]) - 1
         too_big = over_size > 0
@@ -84,29 +90,58 @@ class TextHandler:
         if timestamp:
             timestamp = utils.get_timestamp()
 
-        self.FileWriter.write(self.history, "history_og",
-                              timestamp=timestamp, json_write=True)
-        self.FileWriter.write(self.history_output, "history_tr",
-                              timestamp=timestamp, json_write=True)
-        self.FileWriter.write([(o, t) for (o, t) in zip(self.history, self.history_output)], "history",
-                              timestamp=timestamp, json_write=True)
-        self.FileWriter.write(self.history, "history_og",
-                              timestamp=timestamp, json_write=False)
-        self.FileWriter.write(self.history_output, "history_tr",
-                              timestamp=timestamp, json_write=False)
-
         flattened_interleaved_history = [elem for (o, t) in zip(
             self.history, self.history_output) for elem in (o, t)]
-        self.FileWriter.write(flattened_interleaved_history,
-                              "history", timestamp=timestamp, json_write=False)
 
         replacer = ['\n', r'\n']
-        self.FileWriter.write(
-            (f"{o.replace(*replacer)}={t.replace(*replacer)}" for (o, t)
-             in zip(self.history, self.history_output)),
-            "history_nonl",
-            timestamp=timestamp, json_write=False)
+        history_nonl = (f"{o.replace(*replacer)}={t.replace(*replacer)}" for (o, t)
+                 in zip(self.history, self.history_output))
 
+        writers = [(
+            "history_og",
+            lambda: self.FileWriter.write(self.history, "history_og",
+                                          timestamp=timestamp, json_write=True),
+        ),
+            (
+            "history_tr",
+            lambda: self.FileWriter.write(self.history_output, "history_tr",
+                                          timestamp=timestamp, json_write=True),
+        ),
+            (
+            "history",
+            lambda: self.FileWriter.write([(o, t) for (o, t) in zip(self.history, self.history_output)], "history",
+                                          timestamp=timestamp, json_write=True),
+        ),
+            (
+            "history_og",
+            lambda: self.FileWriter.write(self.history, "history_og",
+                                          timestamp=timestamp, json_write=False),
+        ),
+            (
+            "history_tr",
+            lambda: self.FileWriter.write(self.history_output, "history_tr",
+                                          timestamp=timestamp, json_write=False),
+        ),
+            (
+            "history",
+            lambda: self.FileWriter.write(flattened_interleaved_history, "history",
+                                          timestamp=timestamp, json_write=False),
+        ),
+            (
+            "history_nonl",
+            lambda: self.FileWriter.write(history_nonl, "history_nonl",
+                                          timestamp=timestamp, json_write=False),
+        ),
+        ]
+
+        exceptions = []
+        for name, f in writers:
+            try:
+                f()
+            except Exception as e:
+                exceptions.append((name, e))
+                logger.exception(f"Error while writing {name}")
+        return exceptions
 
     def get_output(self, text_new, args):
         return text_new
@@ -114,18 +149,24 @@ class TextHandler:
     def print_input(self, text_new):
         print_text = text_new
         print(self.print_format['input'].format(
-                     print_text=print_text,
-         			history_length=len(self.history),
-         			history_cut=self.history_cut,
+            print_text=print_text,
+            history_length=len(self.history),
+            history_cut=self.history_cut,
         ), flush=True)
 
     def print_output(self, output):
         print_text = output
         print(self.print_format['output'].format(
             print_text=print_text,
-			history_length=len(self.history),
-			history_cut=self.history_cut,
-		))
+            history_length=len(self.history),
+            history_cut=self.history_cut,
+        ))
+
+    def append_to_history(self, text_input, text_output):
+        self.history.append(text_input)
+        self.history_output.append(text_output)
+        self.output_cache[text_input] = text_output
+        self.save_state()
 
     def handle(self, text_new, get_output_args={}):
         get_output_args = {**self.get_output_args, **get_output_args}
@@ -138,19 +179,21 @@ class TextHandler:
 
             self.print_input(text_new)
             try:
-                output = ""
+                text_output = ""
                 if self.use_output_cache and text_new in self.output_cache:
-                    output = self.output_cache[text_new]
+                    text_output = self.output_cache[text_new]
                 else:
                     self.history_cut = self.find_history_cut(text_new)
-                    output = self.get_output(text_new, get_output_args)
-                    
-                self.print_output(output)
-                self.history.append(text_new)
-                self.history_output.append(output)
-                self.output_cache[text_new] = output
-                self.save_state()
-                return output
+                    text_output = self.get_output(text_new, get_output_args)
+                self.append_to_history(text_new, text_output)
+                self.print_output(text_output)
+                if self.wait:
+                    if isinstance(self.wait, Iterable):
+                        for w in self.wait:
+                            w.join()
+                    else:
+                        self.wait.join()
+                return text_output
             except RuntimeError as e:
                 print(f"Error handling ```\n{text_new}\n```\n{e}")
             return None
@@ -169,14 +212,13 @@ class TextHandler:
         self.history_output = self.history_output[:-1]
         return self.handle(text_new, get_output_args=get_output_args)
 
-
     def retry_last_input_args(self):
         if len(self.history) < 1:
             return None
 
         json_string = input(
             f"Current args: {self.get_output_args})\n paste valid json args:")
-                
+
         try:
             get_output_args = json.loads(json_string)
             self.retry_last(get_output_args=get_output_args)
@@ -184,7 +226,6 @@ class TextHandler:
             # The string is not valid JSON
             print("Invalid JSON string")
             return None
-
 
     def clear_history(self, inp):
         if int(inp) > 0:
