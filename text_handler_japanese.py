@@ -9,8 +9,8 @@ class TextHandlerJapanese(text_handler.TextHandler):
     def __init__(
         self,
         print_romaji=True,
-        characters_to_spaces=['_'],
-        camelcase_to_spaces=True,
+        characters_to_spaces=[],
+        camelcase_to_spaces=False,
         english_to='', # '', or, 'katakana', or 'engrish'
         *args,
         **kwargs,
@@ -49,7 +49,7 @@ class TextHandlerJapanese(text_handler.TextHandler):
         if self.english_to == 'katakana':
             text = utils_japanese.english_replace_with_f(
                 text, utils_japanese.replace_match_with_katakana)
-        if self.english_to == 'engrish':
+        elif self.english_to == 'engrish':
             text = utils_japanese.english_replace_with_f(
                 text, utils_japanese.replace_match_with_engrish)
             text = (text)
