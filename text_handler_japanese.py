@@ -11,7 +11,7 @@ class TextHandlerJapanese(text_handler.TextHandler):
         print_romaji=True,
         characters_to_spaces=['_'],
         camelcase_to_spaces=True,
-        english_to='engrish', # 'katakana' or 'engrish'
+        english_to='', # '', or, 'katakana', or 'engrish'
         *args,
         **kwargs,
     ):
