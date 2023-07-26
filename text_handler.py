@@ -6,6 +6,7 @@ from typing import Any, Iterable
 from python_utils_aisu import utils, utils_japanese
 
 logger = utils.loggingGetLogger(__name__)
+logger.setLevel('WARN')
 
 
 class TextHandler:
@@ -169,10 +170,12 @@ class TextHandler:
         self.save_state()
 
     def handle(self, text_new, get_output_args={}):
+        logger.info(f"text_new  START {text_new}")
         get_output_args = {**self.get_output_args, **get_output_args}
         if not text_new:
             return ""
         with self.LOCK:
+            logger.info(f"text_new LOCK  {text_new}")
             if len(self.history) > 1 and text_new.replace("\n", "") == self.history[-1].replace("\n", ""):
                 return self.history_output[-1]
             text_new = text_new.replace('\r\n', '\n')
@@ -188,14 +191,18 @@ class TextHandler:
                 self.append_to_history(text_new, text_output)
                 self.print_output(text_output)
                 if self.wait:
+                    logger.info(f"joining {self.wait}")
                     if isinstance(self.wait, Iterable):
                         for w in self.wait:
+                            logger.info(f"joining {w}")
                             w.join()
                     else:
                         self.wait.join()
+                    logger.info(f"joined {self.wait}")
                 return text_output
             except RuntimeError as e:
                 print(f"Error handling ```\n{text_new}\n```\n{e}")
+            logger.info(f"text_new OVER  {text_new}")
             return None
 
     def handle_spawn_thread(self, text_new):
