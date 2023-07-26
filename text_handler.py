@@ -6,6 +6,7 @@ from typing import Any, Iterable
 from python_utils_aisu import utils, utils_japanese
 
 logger = utils.loggingGetLogger(__name__)
+logger.setLevel('INFO')
 
 
 class TextHandler:
@@ -13,10 +14,6 @@ class TextHandler:
         self,
         use_output_cache=True,
         start_from_history_file="",
-        history=None,
-        history_output=None,
-        output_cache=None,
-        history_cut=0,
         FileWriterArgs={
             "directory": "history",
             "directory_timestamped": "history/old",
@@ -31,6 +28,11 @@ class TextHandler:
             'src': None,
             'dest': None,
         },
+
+        history_cut=0,
+        history=None,
+        history_output=None,
+        output_cache=None,
     ):
         self.use_output_cache = use_output_cache
         self.start_from_history_file = start_from_history_file
@@ -49,19 +51,22 @@ class TextHandler:
         self.language = language
 
         if self.start_from_history_file:
-            with open(self.start_from_history_file, mode="r", encoding="utf-8") as f:
-                history_json = json.load(f)
-                for t in history_json:
-                    self.history.append(t[0])
-                    self.history_output.append(t[1])
-                    if t[0] in self.output_cache:
-                        self.output_cache[t[0]].append(t[1])
-                    else:
-                        self.output_cache[t[0]] = [t[1]]
+            try:
+                with open(self.start_from_history_file, mode="r", encoding="utf-8") as f:
+                    history_json = json.load(f)
+                    for t in history_json:
+                        og, tr = t
+                        self.history.append(og)
+                        self.history_output.append(tr)
+                        self.output_cache[og] = tr
+            except Exception as e:
+                logging.error(f"Error opening file {self.start_from_history_file}, {str(e)}")
 
-            print("get history_cut...")
+                    
+            logger.info(f"history size = {len(self.history)}")
+            logger.info("get history_cut...")
             self.history_cut = self.find_history_cut("whatever")
-            print(f"history_cut = {self.history_cut}")
+            logger.info(f"history_cut = {self.history_cut}")
 
         self.wait: Any = None
 
@@ -172,10 +177,11 @@ class TextHandler:
         get_output_args = {**self.get_output_args, **get_output_args}
         if not text_new:
             return ""
+        
+        text_new = text_new.replace('\r\n', '\n')
         with self.LOCK:
-            if len(self.history) > 1 and text_new.replace("\n", "") == self.history[-1].replace("\n", ""):
+            if len(self.history) > 1 and text_new.strip() == self.history[-1].strip():
                 return self.history_output[-1]
-            text_new = text_new.replace('\r\n', '\n')
 
             self.print_input(text_new)
             try:
@@ -195,8 +201,8 @@ class TextHandler:
                         self.wait.join()
                 return text_output
             except RuntimeError as e:
-                print(f"Error handling ```\n{text_new}\n```\n{e}")
-            return None
+                logger.exception(f"Error handling ```\n{text_new}\n```\nError: {e}\n")
+                raise
 
     def handle_spawn_thread(self, text_new):
         thread = threading.Thread(target=self.handle, args=(text_new,))
@@ -221,10 +227,10 @@ class TextHandler:
 
         try:
             get_output_args = json.loads(json_string)
-            self.retry_last(get_output_args=get_output_args)
+            return self.retry_last(get_output_args=get_output_args)
         except json.JSONDecodeError:
             # The string is not valid JSON
-            print("Invalid JSON string")
+            logger.error("Invalid JSON string")
             return None
 
     def clear_history(self, inp):
