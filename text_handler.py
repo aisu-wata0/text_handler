@@ -201,7 +201,7 @@ class TextHandler:
                     logger.info(f"joined {self.wait}")
                 return text_output
             except RuntimeError as e:
-                print(f"Error handling ```\n{text_new}\n```\n{e}")
+                logger.exception(f"Error handling ```\n{text_new}\n```")
             logger.info(f"text_new OVER  {text_new}")
             return None
 
